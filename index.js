@@ -165,7 +165,7 @@ function startScheduler() {
 
 // ── Shopify API helpers ───────────────────────────────────────────────────────
 async function shopifyFetch(path, method = 'GET', body = null) {
-  const url  = `https://${SHOPIFY_SHOP}/admin/api/2024-04${path}`;
+  const url  = `https://${SHOPIFY_SHOP}/admin/api/2024-07${path}`;
   const opts = {
     method,
     headers: {
