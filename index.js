@@ -186,8 +186,12 @@ async function fetchAllRefusalOrders() {
 
   while (isFirstPage || pageInfo) {
     isFirstPage = false;
-    let path = `/orders.json?status=any&limit=250&fields=id,order_number,email,phone,tags,shipping_address`;
-    if (pageInfo) path += `&page_info=${pageInfo}`;
+
+    // Shopify does not allow ?fields combined with ?page_info — causes 400
+    // First page: filter by status. Subsequent pages: page_info only.
+    const path = pageInfo
+      ? `/orders.json?limit=250&page_info=${pageInfo}`
+      : `/orders.json?status=any&limit=250`;
 
     const { data, headers } = await shopifyFetch(path);
     for (const o of (data.orders || [])) {
