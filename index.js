@@ -172,10 +172,14 @@ async function shopifyFetch(path, method = 'GET', body = null) {
       'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
       'Content-Type': 'application/json',
     },
+    signal: AbortSignal.timeout(15000), // 15 second timeout
   };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
-  if (!res.ok) throw new Error(`Shopify ${method} ${path} → ${res.status}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Shopify ${method} ${path} → ${res.status}: ${text.slice(0, 200)}`);
+  }
   return { data: await res.json(), headers: res.headers };
 }
 
@@ -296,21 +300,25 @@ function verifyHmac(req) {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-async function boot() {
+function boot() {
   console.log(`🚀 Return Risk app starting on port ${PORT}`);
   console.log(`   Shop: ${SHOPIFY_SHOP}`);
   console.log(`   Risk tag: "${RISK_TAG}"  |  Source tag: "${REFUSAL_TAG}"`);
   console.log(`   Address threshold: ${ADDRESS_THRESHOLD * 100}%`);
 
-  // Warm up cache on startup
-  try {
-    await fullRefresh();
-  } catch (err) {
-    console.warn(`⚠️  Initial cache load failed: ${err.message} — will retry on next refresh`);
-  }
+  // IMPORTANT: listen first, cache after — Render requires port open within 3min
+  const server = app.listen(PORT, () => {
+    console.log(`✅ Listening on port ${PORT}`);
+  });
 
-  startScheduler();
-  app.listen(PORT, () => console.log(`✅ Listening on port ${PORT}`));
+  server.on('listening', () => {
+    // Load cache in background after port is open
+    setTimeout(() => {
+      fullRefresh()
+        .catch(err => console.warn(`⚠️  Initial cache load failed: ${err.message}`));
+      startScheduler();
+    }, 1000);
+  });
 }
 
 boot();
