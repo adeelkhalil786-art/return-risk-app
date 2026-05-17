@@ -66,8 +66,8 @@ app.post('/webhook/orders/updated', async (req, res) => {
 
   try {
     const order = JSON.parse(req.body);
-    const tags  = (order.tags || '').split(',').map(t => t.trim());
-    const hasRefusal = tags.includes(REFUSAL_TAG);
+    const tags  = (order.tags || '').split(',').map(t => t.trim().toLowerCase());
+    const hasRefusal = tags.includes(REFUSAL_TAG.toLowerCase());
 
     if (hasRefusal) {
       cache.upsertOrder(buildCacheEntry(order));
@@ -198,9 +198,15 @@ async function fetchAllRefusalOrders() {
       : `/orders.json?status=any&limit=250`;
 
     const { data, headers } = await shopifyFetch(path);
-    for (const o of (data.orders || [])) {
-      const tags = (o.tags || '').split(',').map(t => t.trim());
-      if (tags.includes(REFUSAL_TAG)) refusalOrders.push(o);
+    const batch = data.orders || [];
+    console.log(`   Fetched ${batch.length} orders from Shopify`);
+    for (const o of batch) {
+      const tags = (o.tags || '').split(',').map(t => t.trim().toLowerCase());
+      console.log(`   Order #${o.order_number} tags: [${tags.join(', ')}]`);
+      if (tags.includes(REFUSAL_TAG.toLowerCase())) {
+        console.log(`   ✅ Order #${o.order_number} has Refusal tag — adding to cache`);
+        refusalOrders.push(o);
+      }
     }
 
     const link = headers.get('link') || '';
