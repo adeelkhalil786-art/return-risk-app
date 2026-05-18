@@ -16,6 +16,7 @@ db.exec(`
     order_number  TEXT NOT NULL,
     phone         TEXT,
     address       TEXT,
+    city          TEXT,
     email         TEXT,
     cached_at     INTEGER NOT NULL
   );
@@ -32,12 +33,13 @@ db.exec(`
 // ── Prepared statements ───────────────────────────────────────────────────────
 const stmts = {
   upsert: db.prepare(`
-    INSERT INTO refusal_orders (order_id, order_number, phone, address, email, cached_at)
-    VALUES (@order_id, @order_number, @phone, @address, @email, @cached_at)
+    INSERT INTO refusal_orders (order_id, order_number, phone, address, city, email, cached_at)
+    VALUES (@order_id, @order_number, @phone, @address, @city, @email, @cached_at)
     ON CONFLICT(order_id) DO UPDATE SET
       order_number = excluded.order_number,
       phone        = excluded.phone,
       address      = excluded.address,
+      city         = excluded.city,
       email        = excluded.email,
       cached_at    = excluded.cached_at
   `),
@@ -61,6 +63,7 @@ function replaceAll(orders) {
         order_number: String(o.order_number),
         phone:        o.phone   || null,
         address:      o.address || null,
+        city:         o.city    || null,
         email:        o.email   || null,
         cached_at:    now,
       });
@@ -78,6 +81,7 @@ function upsertOrder(order) {
     order_number: String(order.order_number),
     phone:        order.phone   || null,
     address:      order.address || null,
+    city:         order.city    || null,
     email:        order.email   || null,
     cached_at:    Date.now(),
   });
