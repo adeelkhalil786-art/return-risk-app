@@ -55,8 +55,9 @@ app.post('/webhook/orders/create', async (req, res) => {
 });
 
 // ── Webhook: orders/updated ───────────────────────────────────────────────────
-// Fires when staff manually adds/removes the Refusal tag on an order.
-// Keeps the cache in sync without waiting for the next scheduled refresh.
+// Fires when a Refusal tag is added to an existing order.
+// We ONLY add to cache here — never remove.
+// Cache cleanup happens naturally on the 6h scheduled full refresh.
 app.post('/webhook/orders/updated', async (req, res) => {
   if (!verifyHmac(req)) {
     console.warn('⚠️  HMAC verification failed (orders/updated)');
@@ -72,10 +73,8 @@ app.post('/webhook/orders/updated', async (req, res) => {
     if (hasRefusal) {
       cache.upsertOrder(buildCacheEntry(order));
       console.log(`\n🔄 Order #${order.order_number} tagged Refusal — added to cache`);
-    } else {
-      cache.removeOrder(order.id);
-      console.log(`\n🔄 Order #${order.order_number} Refusal tag removed — evicted from cache`);
     }
+    // If no Refusal tag — do nothing. Never evict from cache here.
   } catch (err) {
     console.error('Error handling orders/updated:', err.message);
   }
@@ -109,20 +108,13 @@ async function processOrder(order) {
       break;
     }
 
-    // ── Match 2: Address similarity (city must match first) ─────────────
+    // ── Match 2: Address similarity ───────────────────────────────────────
     if (orderAddress && past.address) {
-      // Only run expensive similarity if cities match — avoids false positives
-      const orderCity  = (order.shipping_address?.city  || '').toLowerCase().trim();
-      const pastCity   = (past.city || '').toLowerCase().trim();
-      const cityMatch  = orderCity && pastCity && orderCity === pastCity;
-
-      if (cityMatch) {
-        const similarity = jaroWinkler(orderAddress, past.address);
-        if (similarity >= ADDRESS_THRESHOLD) {
-          matchFound  = true;
-          matchReason = `address match (${Math.round(similarity * 100)}% similarity) — matches refusal order #${past.order_number}`;
-          break;
-        }
+      const similarity = jaroWinkler(orderAddress, past.address);
+      if (similarity >= ADDRESS_THRESHOLD) {
+        matchFound  = true;
+        matchReason = `address match (${Math.round(similarity * 100)}% similarity) — matches refusal order #${past.order_number}`;
+        break;
       }
     }
   }
