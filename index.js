@@ -14,7 +14,7 @@ const {
 
 const RISK_TAG           = 'Return Risk';
 const REFUSAL_TAG        = 'Refusal';
-const ADDRESS_THRESHOLD  = 0.70;
+const ADDRESS_THRESHOLD  = 0.85; // raised from 70% to reduce false positives
 const CACHE_TTL_MS       = Number(CACHE_TTL_HOURS) * 60 * 60 * 1000;
 
 // ── Raw body for HMAC (must come before express.json) ────────────────────────
@@ -109,13 +109,20 @@ async function processOrder(order) {
       break;
     }
 
-    // ── Match 2: Address similarity ───────────────────────────────────────
+    // ── Match 2: Address similarity (city must match first) ─────────────
     if (orderAddress && past.address) {
-      const similarity = jaroWinkler(orderAddress, past.address);
-      if (similarity >= ADDRESS_THRESHOLD) {
-        matchFound  = true;
-        matchReason = `address match (${Math.round(similarity * 100)}% similarity) — matches refusal order #${past.order_number}`;
-        break;
+      // Only run expensive similarity if cities match — avoids false positives
+      const orderCity  = (order.shipping_address?.city  || '').toLowerCase().trim();
+      const pastCity   = (past.city || '').toLowerCase().trim();
+      const cityMatch  = orderCity && pastCity && orderCity === pastCity;
+
+      if (cityMatch) {
+        const similarity = jaroWinkler(orderAddress, past.address);
+        if (similarity >= ADDRESS_THRESHOLD) {
+          matchFound  = true;
+          matchReason = `address match (${Math.round(similarity * 100)}% similarity) — matches refusal order #${past.order_number}`;
+          break;
+        }
       }
     }
   }
@@ -148,6 +155,7 @@ function buildCacheEntry(order) {
     email:        (order.email || '').toLowerCase().trim() || null,
     phone:        normalizePhone(order.shipping_address?.phone || order.phone || '') || null,
     address:      normalizeAddress(order.shipping_address) || null,
+    city:         (order.shipping_address?.city || '').toLowerCase().trim() || null,
   };
 }
 
@@ -198,15 +206,9 @@ async function fetchAllRefusalOrders() {
       : `/orders.json?status=any&limit=250`;
 
     const { data, headers } = await shopifyFetch(path);
-    const batch = data.orders || [];
-    console.log(`   Fetched ${batch.length} orders from Shopify`);
-    for (const o of batch) {
+    for (const o of (data.orders || [])) {
       const tags = (o.tags || '').split(',').map(t => t.trim().toLowerCase());
-      console.log(`   Order #${o.order_number} tags: [${tags.join(', ')}]`);
-      if (tags.includes(REFUSAL_TAG.toLowerCase())) {
-        console.log(`   ✅ Order #${o.order_number} has Refusal tag — adding to cache`);
-        refusalOrders.push(o);
-      }
+      if (tags.includes(REFUSAL_TAG.toLowerCase())) refusalOrders.push(o);
     }
 
     const link = headers.get('link') || '';
