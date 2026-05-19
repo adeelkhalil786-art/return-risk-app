@@ -14,7 +14,6 @@ const {
 
 const RISK_TAG           = 'Return Risk';
 const REFUSAL_TAG        = 'Refusal';
-const ADDRESS_THRESHOLD  = 0.85; // raised from 70% to reduce false positives
 const CACHE_TTL_MS       = Number(CACHE_TTL_HOURS) * 60 * 60 * 1000;
 
 // ── Raw body for HMAC (must come before express.json) ────────────────────────
@@ -108,15 +107,7 @@ async function processOrder(order) {
       break;
     }
 
-    // ── Match 2: Address similarity ───────────────────────────────────────
-    if (orderAddress && past.address) {
-      const similarity = jaroWinkler(orderAddress, past.address);
-      if (similarity >= ADDRESS_THRESHOLD) {
-        matchFound  = true;
-        matchReason = `address match (${Math.round(similarity * 100)}% similarity) — matches refusal order #${past.order_number}`;
-        break;
-      }
-    }
+    // Address matching disabled — phone-only matching for reliability
   }
 
   if (!matchFound) {
