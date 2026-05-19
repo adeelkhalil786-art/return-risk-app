@@ -295,7 +295,6 @@ function boot() {
   console.log(`🚀 Return Risk app starting on port ${PORT}`);
   console.log(`   Shop: ${SHOPIFY_SHOP}`);
   console.log(`   Risk tag: "${RISK_TAG}"  |  Source tag: "${REFUSAL_TAG}"`);
-  console.log(`   Address threshold: ${ADDRESS_THRESHOLD * 100}%`);
 
   // IMPORTANT: listen first, cache after — Render requires port open within 3min
   const server = app.listen(PORT, () => {
